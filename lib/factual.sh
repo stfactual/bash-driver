@@ -93,26 +93,20 @@ factual-check-dependency() {
   fi
 }
 
-# Actions
-factual-usage() {
-cat >&2 <<EOF
-Factual driver version $FACTUAL_DRIVER_VERSION
-Copyright (c) 2012, Factual
-
-Setup:
-  $0 --check   (this will install your OAuth credentials)
-
-Queries:
-  $0 [--fetch] table-name
-    [-q|--query "query"]
-    [-l|--limit n]
-    [-f|--filter filter-json]
-  $0 --schema table-name
-  $0 --examples
-EOF
-  return 0
+factual-json-hash() {
+  local values_json=
+  while (( $# )); do
+    if (( $# % 2 )); then
+      values_json="$values_json\"$(echo "$1" | sed 's/"/\\"/g')\""
+    else
+      values_json="$values_json,\"$1\":"
+    fi
+    shift
+  done
+  echo "{${values_json:1}}"
 }
 
+# Actions
 factual-check-dependencies() {
   factual-check-dependency curl &&
   factual-check-dependency openssl &&
@@ -130,23 +124,23 @@ factual-check-dependencies() {
 }
 
 factual-fetch-usage() {
-    factual-say \
-        "usage: $0 [--fetch] table-name [options]" \
-        "where [options] is one or more of:" \
-        "  -q|--query 'text'    full-text search over results" \
-        "  -f|--filters 'json'  Mongo-style JSON object for result filtering" \
-        "  -g|--geo 'json'      Mongo-style JSON object for geo filtering" \
-        "  -c|--count           include count of all rows matching the query" \
-        "  -l|--limit n         maximum number of rows to return" \
-        "  -o|--offset n        start index of rows (useful for paging)" \
-        "  -s|--sort column:asc|desc" \
-        "  -S|--select fields|* which fields to select (defaults to all)" \
-        "" \
-        "See http://developer.factual.com/display/docs/Core+API+-+Read for more" \
-        "details about these options." \
-        "" \
-        "For example:" \
-        "  $0 --fetch places -q starbucks --limit 10 --sort name:asc"
+  factual-say \
+      "usage: $0 [--fetch] table-name [options]" \
+      "where [options] is one or more of:" \
+      "  -q|--query 'text'    full-text search over results" \
+      "  -f|--filters 'json'  Mongo-style JSON object for result filtering" \
+      "  -g|--geo 'json'      Mongo-style JSON object for geo filtering" \
+      "  -c|--count           include count of all rows matching the query" \
+      "  -l|--limit n         maximum number of rows to return" \
+      "  -o|--offset n        start index of rows (useful for paging)" \
+      "  -s|--sort column:asc|desc" \
+      "  -S|--select fields|* which fields to select (defaults to all)" \
+      "" \
+      "See http://developer.factual.com/display/docs/Core+API+-+Read for more" \
+      "details about these options." \
+      "" \
+      "For example:" \
+      "  $0 --fetch places -q starbucks --limit 10 --sort name:asc"
 }
 
 factual-fetch() {
@@ -179,7 +173,22 @@ factual-fetch() {
 }
 
 factual-facets-usage() {
-  echo "TODO: write a Facets usage function"
+  factual-say \
+      "usage: $0 --facets table-name fields [options]" \
+      "where fields is either '*' or a comma-separated list of field names," \
+      "and [options] is one or more of:" \
+      "  -q|--query 'text'    full-text search over results" \
+      "  -f|--filters 'json'  Mongo-style JSON object for result filtering" \
+      "  -g|--geo 'json'      Mongo-style JSON object for geo filtering" \
+      "  -c|--count           include count of all rows matching the query" \
+      "  -l|--limit n         maximum number of rows to return" \
+      "  -m|--min-count n     the minimum facet count for each result" \
+      "" \
+      "See http://developer.factual.com/display/docs/Core+API+-+Facets for more" \
+      "details about the Facets API." \
+      "" \
+      "For example:" \
+      "  $0 --facets global locality,region -q starbucks --filters '{\"country\":\"US\"}'"
 }
 
 factual-facets() {
@@ -213,43 +222,67 @@ factual-facets() {
     esac
   done
 
-  factual-request GET /t/$table_name/facets "select=$selected_fields" ${params[@]}
+  factual-request GET /t/$table_name/facets "$(OAuth_param select "$selected_fields")" ${params[@]}
 }
 
-factual-resolve-usage() {
+factual-resolve-match-usage() {
   factual-say \
-      "usage: $0 --resolve name1 value1 [name2 value2 ...]" \
+      "usage: $0 --resolve|--match name1 value1 [name2 value2 ...]" \
       "See http://developer.factual.com/display/docs/Places+API+-+Resolve for" \
-      "more information about the Resolve API." \
+      "more information about the Resolve API, and see" \
+      "http://developer.factual.com/display/docs/Places+API+-+Match for more" \
+      "information about the Match API." \
       "" \
       "For example:" \
-      "  $0 --resolve name 'McDonalds' address '10451 Santa Monica Blvd'"
+      "  $0 --resolve name 'McDonalds' address '10451 Santa Monica Blvd'" \
+      "  $0 --match name 'McDonalds' address '10451 Santa Monica Blvd'"
 }
 
 factual-resolve() {
   if (( $# % 2 )); then
     factual-say "\033[1;31mresolve must have an even number of arguments\033[0;0m"
-    factual-resolve-usage
+    factual-resolve-match-usage
     return 1
   fi
 
-  local values_json=
-  while (( $# )); do
-    if (( $# % 2 )); then
-      values_json="$values_json\"$(echo "$1" | sed 's/"/\\"/g')\""
-    else
-      values_json="$values_json,\"$1\":"
-    fi
-    shift
-  done
+  factual-request GET /places/resolve "$(OAuth_param values "$(factual-json-hash "$@")")"
+}
 
-  factual-request GET /places/resolve "$(OAuth_param values "{${values_json:1}}")"
+factual-match() {
+  if (( $# % 2 )); then
+    factual-say "\033[1;31mmatch must have an even number of arguments\033[0;0m"
+    factual-resolve-match-usage
+    return 1
+  fi
+
+  factual-request GET /places/match "$(OAuth_param values "$(factual-json-hash "$@")")"
+}
+
+factual-geocode-usage() {
+  factual-say \
+      "usage: $0 --geocode latitude longitude" \
+      "See http://developer.factual.com/display/docs/Places+API+-+Reverse+Geocoder" \
+      "for more information about the Geocode API." \
+      "" \
+      "For example:" \
+      "  $0 --geocode 34.06021 -118.41828"
+}
+
+factual-geocode() {
+  if (( $# != 2 )); then
+    factual-say "\033[1;31mgeocode takes exactly two arguments (latitude, longitude)\033[0;0m"
+    factual-geocode-usage
+    return 1
+  fi
+
+  local json_array="[$1,$2]"
+  factual-request GET /places/geocode "$(OAuth_param geo "{\"\$point\":$json_array}")"
 }
 
 factual-schema() {
-  if (( $# )); then
+  if (( $# != 1 )); then
     factual-say \
-        "\033[1;31musage: $0 --schema table-name\033[0;0m" \
+        "usage: $0 --schema table-name" \
         "For example:" \
         "  $0 --schema restaurants-us"
     return 1
@@ -257,6 +290,33 @@ factual-schema() {
 
   local table_name="$1"
   factual-request GET /t/$table_name/schema
+}
+
+factual-usage() {
+cat >&2 <<EOF
+Factual driver version $FACTUAL_DRIVER_VERSION
+Copyright (c) 2012, Factual
+
+Setup:
+  $0 --check   (this will install your OAuth credentials if necessary)
+
+Querying:
+  $0 [-v|--verbose] --schema table-name
+  $0 [-v|--verbose] [--fetch] table-name ...
+  $0 [-v|--verbose] --facets table-name fields ...
+  $0 [-v|--verbose] --resolve ...
+  $0 [-v|--verbose] --match ...
+  $0 [-v|--verbose] --geocode latitude longitude
+
+To see query-specific options:
+  $0 --fetch-usage
+  $0 --facets-usage
+  $0 --resolve-usage
+  $0 --match-usage
+  $0 --geocode-usage
+
+EOF
+  return 0
 }
 
 factual-main() {
@@ -283,11 +343,23 @@ factual-main() {
     case $option in
       -v|--verbose) factual_verbose=-v ;;
 
-      --check)   action=check-dependencies; break ;;
-      --fetch)   action=fetch;              break ;;
-      --facets)  action=facets;             break ;;
-      --resolve) action=resolve;            break ;;
-      --schema)  action=schema;             break ;;
+      --fetch)         action=fetch;               break ;;
+      --fetch-usage)   action=fetch-usage;         break ;;
+
+      --facets)        action=facets;              break ;;
+      --facets-usage)  action=facets-usage;        break ;;
+
+      --resolve)       action=resolve;             break ;;
+      --resolve-usage) action=resolve-match-usage; break ;;
+
+      --match)         action=match;               break ;;
+      --match-usage)   action=resolve-match-usage; break ;;
+
+      --geocode)       action=geocode;             break ;;
+      --geocode-usage) action=geocode-usage;       break ;;
+
+      --check)         action=check-dependencies;  break ;;
+      --schema)        action=schema;              break ;;
 
       *)
         factual-say "unknown action $option (use --help for available actions)"
