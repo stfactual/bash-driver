@@ -12,7 +12,7 @@ $ cd bash-driver
 The one-step setup is to enter your OAuth credentials. The driver automatically
 stores them in `~/.factualrc`, so you only need to enter them once. In addition,
 this driver makes sure your system has everything it needs to issue API
-requests. Right now this includes `curl`, `openssl`, and `base64`.
+requests. Right now this includes `curl` and `openssl`.
 
 ## OAuth setup
 
@@ -47,7 +47,6 @@ To see query-specific options:
   ./factual --resolve-usage
   ./factual --match-usage
   ./factual --geocode-usage
-
 ```
 
 ## Formatting the output
