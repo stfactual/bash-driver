@@ -10,13 +10,6 @@ factual-say() {
 
 factual-load-key() {
   if [[ -r ~/.factualrc ]]; then
-    mode=$(stat -c %a ~/.factualrc)
-    if [[ "$mode" == "${mode%00}" ]]; then
-      factual-say "~/.factualrc is accessible by group and/or others." \
-                  "You can remove this warning by changing permissions:" \
-                  "$ chmod 0600 ~/.factualrc"
-    fi
-
     oauth_consumer_key="$(cut -f 1 ~/.factualrc)"
     oauth_consumer_secret="$(cut -f 2 ~/.factualrc)"
   else
