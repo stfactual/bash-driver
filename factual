@@ -1,0 +1,416 @@
+#!/bin/bash
+
+# Factual shell script driver
+# Copyright (c) 2012, Factual, Inc.
+#
+# Run this file with no options, or with --help, for usage information.
+
+FACTUAL_DRIVER_VERSION=0.0.1
+#!/bin/bash
+# Copyright (c) 2010, 2012 Yu-Jie Lin
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy of
+# this software and associated documentation files (the "Software"), to deal in
+# the Software without restriction, including without limitation the rights to
+# use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+# of the Software, and to permit persons to whom the Software is furnished to do
+# so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+BASHOAUTH_VERSION=0.1.2
+
+OAuth_debug () {
+	# Print out all parameters, each in own line
+	[[ "$OAUTH_DEBUG" == "" ]] && return
+	local t=$(date +%FT%T.%N)
+	while (( $# > 0 )); do
+		echo "[OAuth][DEBUG][$t] $1"
+		shift 1
+		done
+	}
+
+OAuth_nonce () {
+	# Return a nonce
+	md5sum <<< "$RANDOM-$(date +%s.%N)" | cut -d' ' -f 1
+	}
+
+OAuth_timestamp () {
+	# Return timestamp
+	echo "$(date +%s)"
+	}
+
+OAuth_PE () {
+	# Encode $1 using Percent-encoding as defined in
+	# http://tools.ietf.org/html/rfc5849#section-3.6
+	# Any character other than [a-zA-Z0-9-._~] is converted into format %XX
+    [ -n "$1" ] \
+	&& echo -n "$1" | perl -p -e 's/([^A-Za-z0-9-._~])/sprintf("%%%02X", ord($1))/seg'
+}
+
+OAuth_PE_file () {
+	# Encode a file $1 using Percent-encoding as defined in
+	# http://tools.ietf.org/html/rfc5849#section-3.6
+	# $1 a filename, not the content of file
+    perl -p -e 's/([^A-Za-z0-9-._~])/sprintf("%%%02X", ord($1))/seg' < "$1"
+}
+
+OAuth_params_string () {
+	# Sort the paramters and join them into one-line string
+	while (( $# > 0 )); do
+		echo $1
+		shift 
+		done | sort | tr '\n' '&' | sed 's/&$//'
+	}
+
+OAuth_base_string () {
+	# $1 method: "GET", "POST", etc
+	# $2 url
+	# $3-$N params
+	local method=$1
+	local url=$2
+	shift 2
+
+	local params_string=$(OAuth_params_string $@)
+
+	echo "$method&$(OAuth_PE "$url")&$(OAuth_PE "$params_string")"
+	}
+
+OAuth_param () {
+	# Return a percent encoded key-value pair
+	# $1 key
+	# $2 value
+	echo "$(OAuth_PE "$1")=$(OAuth_PE "$2")"
+	}
+
+OAuth_param_quote () {
+	# Return a percent encoded key-value pair, value is quoted
+	# $1 key
+	# $2 value
+	echo "$(OAuth_PE "$1")=\"$(OAuth_PE "$2")\""
+	}
+
+OAuth_param_file () {
+	# Return a percent encoded key-value pair, the value is an encoded file content
+	# $1 key
+	# $2 filename
+	echo "$(OAuth_PE "$1")=$(OAuth_PE_file "$2")"
+	}
+
+OAuth_param_raw_value () {
+	# Return a percent encoded key-value pair, only key will be encoded by this function
+	# $1 key
+	# $2 value
+	echo "$(OAuth_PE "$1")=$2"
+	}
+
+OAuth_HMAC_SHA1 () {
+	# Hash the text $1 with key $2
+    local text="$1"
+	local key="$2"
+    echo -n "$text" | openssl dgst -sha1 -binary -hmac "$key" | base64
+	}
+
+_OAuth_signature () {
+	# Return the signature, note it's necessary to pass to OAuth_PE before add to header
+	# $1 signature_method
+	# $2 base_string
+	# $3 consumer_secret
+	# $4 token_secret
+	local signature_method="OAuth_${1//-/_}"
+	local base_string=$2
+	local c_secret=$3
+	local t_secret=$4
+	$signature_method "$base_string" "$c_secret&$t_secret"
+	}
+
+OAuth_signature () {
+	# Return the signature, note it's necessary to pass to OAuth_PE before add to header
+	# $1 base_string
+	_OAuth_signature "$oauth_signature_method" "$1" "$oauth_consumer_secret" "$oauth_token_secret"
+	}
+
+_OAuth_authorization_header_params_string () {
+	while (( $# > 0 )); do
+		echo -n "$(cut -d\= -f 1 <<< "$1")=\"$(cut -d\= -f 2 <<< "$1")\""
+		shift 1
+		# Use break to prevent error code being returned
+		(( $# > 0 )) && echo -n ', ' || break
+		done
+	}
+
+_OAuth_authorization_header () {
+	# Return header string
+	# $1 header key
+	# $2 OAuth realm, can be empty string
+	# $3 OAuth consumer key
+	# $4 OAuth consumer secret
+	# $5 OAuth token
+	# $6 OAuth token secret
+	# $7 OAuth signature method
+	# $8 OAuth version
+	# $9 nonce
+	# $10 timestamp
+	# $11 method
+	# $12 url
+	# $13-$N params
+	echo -n "$1: OAuth "
+	[[ "$2" != "" ]] && echo -n "realm=\"$2\", "
+	local oauth_consumer_key="$3"
+	local oauth_consumer_secret="$4"
+	local oauth_token="$5"
+	local oauth_token_secret="$6"
+	local oauth_signature_method="$7"
+	local oauth_version="$8"
+	local oauth_nonce="$9"
+	[[ "$oauth_nonce" == "" ]] && oauth_nonce="$(OAuth_nonce)" 
+	local oauth_timestamp="${10}"
+	[[ "$oauth_timestamp" == "" ]] && oauth_timestamp="$(OAuth_timestamp)" 
+	local method="${11}"
+	local url="${12}"
+	shift 12
+	local params=(
+		$(OAuth_param 'oauth_consumer_key' "$oauth_consumer_key")
+		$(OAuth_param 'oauth_signature_method' "$oauth_signature_method")
+		$(OAuth_param 'oauth_version' "$oauth_version")
+		$(OAuth_param 'oauth_nonce' "$oauth_nonce")
+		$(OAuth_param 'oauth_timestamp' "$oauth_timestamp")
+		)
+	[[ "$oauth_token" != "" ]] && params[${#params[@]}]=$(OAuth_param 'oauth_token' "$oauth_token")
+	local sign_params=${params[@]}
+	while (( $# > 0 )); do
+		sign_params[${#sign_params[@]}]="$1"
+		shift 1
+		done
+	local base_string=$(OAuth_base_string "$method" "$url" ${sign_params[@]})
+	local signature=$(_OAuth_signature "$oauth_signature_method" "$base_string" "$oauth_consumer_secret" "$oauth_token_secret")
+	params[${#params[@]}]=$(OAuth_param 'oauth_signature' "$signature")
+	_OAuth_authorization_header_params_string ${params[@]}
+	}
+
+OAuth_authorization_header () {
+	# Return header string
+	# $1 header key
+	# $2 OAuth realm, can be empty string
+	# $3 OAuth nonce
+	# $4 OAuth timestamp
+	# $5 method
+	# $6 url
+	# $7-$N params
+	local header_key="$1"
+	local realm="$2"
+	local oauth_nonce="$3"
+	local oauth_timestamp="$4"
+	local method="$5"
+	local url="$6"
+	shift 6
+	local params=()
+	while (( $# > 0 )); do
+		params[${#params[@]}]="$1"
+		shift 1
+		done
+	_OAuth_authorization_header "$header_key" "$realm" "$oauth_consumer_key" "$oauth_consumer_secret" "$oauth_token" "$oauth_token_secret" "$oauth_signature_method" "$oauth_version" "$oauth_nonce" "$oauth_timestamp" "$method" "$url" ${params[@]}
+	}
+#!/bin/bash
+
+# Low-level functions
+factual-say() {
+  while (( $# )); do
+    echo -e >&2 "$1"
+    shift
+  done
+}
+
+factual-load-key() {
+  if [[ -r ~/.factualrc ]]; then
+    mode=$(stat -c %a ~/.factualrc)
+    if [[ "$mode" == "${mode%00}" ]]; then
+      factual-say "~/.factualrc is accessible by group and/or others." \
+                  "You can remove this warning by changing permissions:" \
+                  "$ chmod 0600 ~/.factualrc"
+    fi
+
+    oauth_consumer_key="$(cut -f 1 ~/.factualrc)"
+    oauth_consumer_secret="$(cut -f 2 ~/.factualrc)"
+  else
+    factual-say "Your credentials are not yet stored in ~/.factualrc." \
+                "To use this driver, you'll need an API key, available free " \
+                "from http://www.factual.com/api-keys/request." \
+                "" \
+                "When you have the OAuth info, paste it in below:" \
+                ""
+    read "OAuth key: " oauth_consumer_key
+    read "OAuth secret: " oauth_consumer_secret
+
+    if echo -e "$oauth_consumer_key\t$oauth_consumer_secret" > ~/.factualrc; then
+      chmod 0600 ~/.factualrc
+      factual-say "Credentials saved in ~/.factualrc."
+    else
+      factual-say "Could not write ~/.factualrc"
+      return 1
+    fi
+  fi
+
+  oauth_signature_method="HMAC-SHA1"
+  oauth_version="1.0"
+}
+
+factual-oauth-header() {
+  local method="$1"
+  local url="$2"
+  shift 2
+
+  OAuth_authorization_header \
+    Authorization \
+    '' \
+    '' \
+    '' \
+    "$method" \
+    "$url" \
+    "$@"
+}
+
+factual-request() {
+  local method="$1"
+  local url="http://$factual_hostname$2"
+  shift 2
+
+  local oauth_header="$(factual-oauth-header 'GET' "$url" "$@")"
+  local querystring=
+
+  while (( $# )); do
+    querystring="$querystring&$1"
+    shift
+  done
+
+  url="$url?${querystring:1}"
+
+  [[ -z "$factual_verbose" ]] || factual-say "request URL is $url"
+  local result="$(curl -s $factual_verbose -H "$oauth_header" "$url")"
+  if tr ',' '\n' <<< "$result" | grep '"status":"ok"' >& /dev/null; then
+    echo "$result"
+  else
+    factual-say "\033[1;31merror requesting $url\033[0;0m"
+    echo "$result"
+    return 1
+  fi
+}
+
+factual-check-dependency() {
+  echo -ne "checking for $1... \033[1;32m"
+  if ! which $1 | tr -d '\n'; then
+    echo -e "\033[1;31mnot found\033[0;0m"
+    return 1
+  else
+    echo -e "\033[0;0m"
+  fi
+}
+
+# Actions
+factual-usage() {
+cat >&2 <<EOF
+Factual driver version $FACTUAL_DRIVER_VERSION
+Copyright (c) 2012, Factual
+
+Setup:
+  $0 --check   (this will install your OAuth credentials)
+
+Queries:
+  $0 [--fetch] table-name
+    [-q|--query "query"]
+    [-l|--limit n]
+    [-f|--filter filter-json]
+  $0 --schema table-name
+  $0 --examples
+EOF
+  return 0
+}
+
+factual-check-dependencies() {
+  factual-check-dependency curl &&
+  factual-check-dependency openssl &&
+  factual-check-dependency base64 || return $?
+
+  echo -n "issuing test query... "
+  if factual-request GET /t/places "q=starbucks" "limit=0" > /dev/null; then
+    echo -e "\033[1;32mthe query worked!\033[0;0m"
+  else
+    echo -e "\033[1;31mfailed\033[0;0m"
+    [[ -z "$factual_verbose" ]] &&
+      echo -e "Try \033[1;33m$0 --verbose --check\033[0;0m to see what went wrong."
+    return 1
+  fi
+}
+
+factual-fetch() {
+  local params=()
+  local table_name="$1"
+  shift
+
+  while (( $# )); do
+    option="$1"
+    shift
+
+    case "$option" in
+      -q|--query) params[${#params[@]}]="$(OAuth_param q "$1")"; shift ;;
+      -l|--limit) params[${#params[@]}]="$(OAuth_param limit "$1")"; shift ;;
+      -f|--filter) params[${#params[@]}]="$(OAuth_param filter "$1")"; shift ;;
+      *)
+        factual-say "unknown fetch option $option" \
+                    "fetch accepts --query, --limit, and --filter"
+        return 1
+    esac
+  done
+
+  factual-request GET /t/$table_name ${params[@]}
+}
+
+factual-main() {
+  if [[ $# == 0 ||
+        $1 == '--usage' ||
+        $1 == '-?' ||
+        $1 == '--help' ||
+        $1 == '-h' ]]; then
+    factual-usage
+    return 0
+  fi
+
+  local action=fetch
+  factual-load-key || return $?
+
+  while :; do
+    if [[ "$1" == "${1##-}" ]]; then
+      # We're done parsing global options once we see the first bareword.
+      break
+    fi
+
+    local option=$1
+    shift
+    case $option in
+      -v|--verbose) factual_verbose=-v ;;
+
+      --check)  action=check-dependencies; break ;;
+      --fetch)  action=fetch;              break ;;
+      --schema) action=schema;             break ;;
+      *)
+        factual-say "unknown action $1 (use --help for available actions)"
+        return 1
+    esac
+  done
+
+  factual-$action "$@"
+}
+
+factual_verbose=
+factual_hostname=api.v3.factual.com
+
+factual-main "$@"
