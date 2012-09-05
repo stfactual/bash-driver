@@ -20,4 +20,29 @@ To setup the driver:
 $ ./factual --check
 ```
 
-Then run `./factual --help` for a list of available queries and examples.
+Then run `./factual --help` for a list of available queries and examples. The
+output should look like this:
+
+```
+Factual driver version 0.0.1
+Copyright (c) 2012, Factual
+
+Setup:
+  ./factual --check   (this will install your OAuth credentials if necessary)
+
+Querying:
+  ./factual [-v|--verbose] --schema table-name
+  ./factual [-v|--verbose] [--fetch] table-name ...
+  ./factual [-v|--verbose] --facets table-name fields ...
+  ./factual [-v|--verbose] --resolve ...
+  ./factual [-v|--verbose] --match ...
+  ./factual [-v|--verbose] --geocode latitude longitude
+
+To see query-specific options:
+  ./factual --fetch-usage
+  ./factual --facets-usage
+  ./factual --resolve-usage
+  ./factual --match-usage
+  ./factual --geocode-usage
+
+```
