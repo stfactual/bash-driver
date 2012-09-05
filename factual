@@ -244,12 +244,24 @@ factual-load-key() {
     read -p "OAuth key: " oauth_consumer_key
     read -p "OAuth secret: " oauth_consumer_secret
 
-    if echo -e "$oauth_consumer_key\t$oauth_consumer_secret" > ~/.factualrc; then
-      chmod 0600 ~/.factualrc
-      factual-say "Credentials saved in ~/.factualrc."
+    factual-say \
+        "For future use, this information will be stored in ~/.factualrc," \
+        "which will be accessible only to you (mode 0600)."
+
+    read -p "Is this ok? (y/n) " ok_to_write
+
+    if [[ $ok_to_write == 'y' ]]; then
+      if echo -e "$oauth_consumer_key\t$oauth_consumer_secret" > ~/.factualrc; then
+        chmod 0600 ~/.factualrc
+        factual-say "Credentials saved in ~/.factualrc."
+      else
+        factual-say "Could not write ~/.factualrc"
+        return 1
+      fi
     else
-      factual-say "Could not write ~/.factualrc"
-      return 1
+      factual-say \
+          "Didn't store your credentials. You'll need to enter them again" \
+          "the next time you make a query."
     fi
   fi
 
