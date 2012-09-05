@@ -102,8 +102,7 @@ factual-json-hash() {
 # Actions
 factual-check-dependencies() {
   factual-check-dependency curl &&
-  factual-check-dependency openssl &&
-  factual-check-dependency base64 || return $?
+  factual-check-dependency openssl || return $?
 
   echo -n "issuing test query... "
   if factual-request GET /t/places "q=starbucks" "limit=0" > /dev/null; then

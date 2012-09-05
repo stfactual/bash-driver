@@ -109,7 +109,7 @@ OAuth_HMAC_SHA1 () {
   # Hash the text $1 with key $2
     local text="$1"
   local key="$2"
-    echo -n "$text" | openssl dgst -sha1 -binary -hmac "$key" | base64
+    echo -n "$text" | openssl dgst -sha1 -binary -hmac "$key" | openssl base64
   }
 
 _OAuth_signature () {
