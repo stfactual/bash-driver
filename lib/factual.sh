@@ -26,8 +26,8 @@ factual-load-key() {
                 "" \
                 "When you have the OAuth info, paste it in below:" \
                 ""
-    read "OAuth key: " oauth_consumer_key
-    read "OAuth secret: " oauth_consumer_secret
+    read -p "OAuth key: " oauth_consumer_key
+    read -p "OAuth secret: " oauth_consumer_secret
 
     if echo -e "$oauth_consumer_key\t$oauth_consumer_secret" > ~/.factualrc; then
       chmod 0600 ~/.factualrc
