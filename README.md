@@ -14,7 +14,10 @@ stores them in `~/.factualrc`, so you only need to enter them once. In addition,
 this driver makes sure your system has everything it needs to issue API
 requests. Right now this includes `curl`, `openssl`, and `base64`.
 
-To setup the driver:
+## OAuth setup
+
+Use `--check` to (1) make sure you've got everything you need, and (2) set up
+your OAuth credentials if they aren't already there:
 
 ```sh
 $ ./factual --check

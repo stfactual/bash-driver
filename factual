@@ -343,6 +343,8 @@ factual-check-dependencies() {
       echo -e "Try \033[1;33m$0 --verbose --check\033[0;0m to see what went wrong."
     return 1
   fi
+
+  factual-usage
 }
 
 factual-fetch-usage() {
