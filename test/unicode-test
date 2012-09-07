@@ -1,0 +1,22 @@
+#!/bin/bash
+fail() {
+  echo -e "\r\033[1;31mfail\033[0;0m $*"
+  exit 1
+}
+
+has() {
+  local pattern="$1"
+  shift
+  echo -en "starting test $* ... "
+  grep "$pattern" > /dev/null || fail "$@"
+  echo -e "\033[1;32mpass\033[0;0m"
+}
+
+../factual --check >& /dev/null || fail '--check failed: is the driver setup correctly?'
+
+../factual global -f '{"locality":"大阪市"}'  | has "大阪市"  'fetch [japanese]'
+../factual global -f 'locality 大阪市'        | has "大阪市"  'fetch [japanese]'
+../factual global -f '{"locality":"בית שמש"}' | has "בית שמש" 'fetch [hebrew]'
+../factual global -f "locality München"       | has "München" 'fetch [german]'
+
+echo -e "\033[1;32mall tests passed\033[0;0m"

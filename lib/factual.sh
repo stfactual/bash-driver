@@ -99,16 +99,26 @@ factual-check-dependency() {
 }
 
 factual-json-hash() {
-  local values_json=
-  while (( $# )); do
-    if (( $# % 2 )); then
-      values_json="$values_json\"$(echo "$1" | sed 's/"/\\"/g')\""
-    else
-      values_json="$values_json,\"$1\":"
-    fi
-    shift
-  done
-  echo "{${values_json:1}}"
+  if [[ ${1:0:1} == '{' ]]; then
+    echo "$@"
+  else
+    local values_json=
+    while (( $# )); do
+      if (( $# % 2 )); then
+        values_json="$values_json\"$(echo "$1" | sed 's/"/\\"/g')\""
+      else
+        values_json="$values_json,\"$1\":"
+      fi
+      shift
+    done
+    echo "{${values_json:1}}"
+  fi
+}
+
+factual-json-param() {
+  local key="$1"
+  shift
+  OAuth_param "$key" "$(factual-json-hash "$@")"
 }
 
 # Actions
@@ -127,6 +137,17 @@ factual-check-dependencies() {
   fi
 
   factual-usage
+}
+
+factual-json-usage() {
+  factual-say \
+      "JSON can be written verbatim; for example:" \
+      "  $0 --facets global --filters '{\"name\":\"Stand\"}'" \
+      "" \
+      "Alternatively, you can write alternating keys and values:" \
+      "  $0 --facets global --filters 'name Stand'" \
+      "" \
+      "This applies for any option that accepts JSON data."
 }
 
 factual-fetch-usage() {
@@ -160,8 +181,8 @@ factual-fetch() {
 
     case "$option" in
       -q|--query)   params[${#params[@]}]="$(OAuth_param q "$1")"; shift ;;
-      -f|--filters) params[${#params[@]}]="$(OAuth_param filters "$1")"; shift ;;
-      -g|--geo)     params[${#params[@]}]="$(OAuth_param geo "$1")"; shift ;;
+      -f|--filters) params[${#params[@]}]="$(factual-json-param filters $1)"; shift ;;
+      -g|--geo)     params[${#params[@]}]="$(factual-json-param geo $1)"; shift ;;
       -c|--count)   params[${#params[@]}]="$(OAuth_param include_count true)" ;;
       -l|--limit)   params[${#params[@]}]="$(OAuth_param limit "$1")"; shift ;;
       -o|--offset)  params[${#params[@]}]="$(OAuth_param offset "$1")"; shift ;;
@@ -169,7 +190,7 @@ factual-fetch() {
       -S|--select)  params[${#params[@]}]="$(OAuth_param select "$1")"; shift ;;
 
       *)
-        factual-say "\033[1;31mnknown fetch option $option\033[0;0m"
+        factual-say "\033[1;31munknown fetch option $option\033[0;0m"
         factual-fetch-usage
         return 1
     esac
@@ -193,8 +214,11 @@ factual-facets-usage() {
       "See http://developer.factual.com/display/docs/Core+API+-+Facets for more" \
       "details about the Facets API." \
       "" \
+      "Run $0 --json-usage for details about writing JSON objects." \
+      "" \
       "For example:" \
-      "  $0 --facets global locality,region -q starbucks --filters '{\"country\":\"US\"}'"
+      "  $0 --facets global locality,region -q starbucks --filters '{\"country\":\"US\"}'" \
+      "  $0 --facets global locality,region -q starbucks --filters 'country US'"
 }
 
 factual-facets() {
@@ -214,8 +238,8 @@ factual-facets() {
     shift
 
     case "$option" in
-      -f|--filters)   params[${#params[@]}]="$(OAuth_param filters "$1")"; shift ;;
-      -g|--geo)       params[${#params[@]}]="$(OAuth_param geo "$1")"; shift ;;
+      -f|--filters)   params[${#params[@]}]="$(factual-json-param filters "$1")"; shift ;;
+      -g|--geo)       params[${#params[@]}]="$(factual-json-param geo "$1")"; shift ;;
       -c|--count)     params[${#params[@]}]="$(OAuth_param include_count true)" ;;
       -l|--limit)     params[${#params[@]}]="$(OAuth_param limit "$1")"; shift ;;
       -m|--min-count) params[${#params[@]}]="$(OAuth_param min_count "$1")"; shift ;;
@@ -251,7 +275,7 @@ factual-resolve() {
     return 1
   fi
 
-  factual-request GET /places/resolve "$(OAuth_param values "$(factual-json-hash "$@")")"
+  factual-request GET /places/resolve "$(factual-json-param values "$@")"
 }
 
 factual-match() {
@@ -261,7 +285,7 @@ factual-match() {
     return 1
   fi
 
-  factual-request GET /places/match "$(OAuth_param values "$(factual-json-hash "$@")")"
+  factual-request GET /places/match "$(factual-json-param values "$@")"
 }
 
 factual-geocode-usage() {
@@ -321,6 +345,9 @@ To see query-specific options:
   $0 --match-usage
   $0 --geocode-usage
 
+For details about writing JSON objects:
+  $0 --json-usage
+
 EOF
   return 0
 }
@@ -366,6 +393,7 @@ factual-main() {
 
       --check)         action=check-dependencies;  break ;;
       --schema)        action=schema;              break ;;
+      --json-usage)    action=json-usage;          break ;;
 
       *)
         factual-say "unknown action $option (use --help for available actions)"
