@@ -5,7 +5,7 @@
 #
 # Run this file with no options, or with --help, for usage information.
 
-FACTUAL_DRIVER_VERSION=0.0.1
+FACTUAL_DRIVER_VERSION=0.0.2
 #!/bin/bash
 # Copyright (c) 2010, 2012 Yu-Jie Lin
 #
@@ -638,5 +638,4 @@ factual-main() {
 
 factual_verbose=
 factual_hostname=api.v3.factual.com
-
 factual-main "$@"

@@ -1,5 +1,6 @@
 #!/bin/bash
 # Builds the Factual driver
 
-cat lib/{header.sh,OAuth.sh,factual.sh} > factual
+cat lib/{header,OAuth,factual,footer}.sh > factual
+cat lib/{header,OAuth,factual}.sh > factual-lib.sh
 chmod +x factual

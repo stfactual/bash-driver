@@ -5,4 +5,4 @@
 #
 # Run this file with no options, or with --help, for usage information.
 
-FACTUAL_DRIVER_VERSION=0.0.1
+FACTUAL_DRIVER_VERSION=0.0.2
