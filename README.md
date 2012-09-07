@@ -90,3 +90,16 @@ fix this, but the easiest is probably Python:
 ```sh
 $ ./factual places -q starbucks | python -mjson.tool
 ```
+
+## Running unit tests
+
+All unit tests live in `test/` and are individual scripts that run the main
+`factual` program. They assume that you've already run `./factual --init`, but
+otherwise have no state. To run tests:
+
+```sh
+$ cd test       # unfortunately, this matters at the moment
+$ ./unicode-test
+```
+
+More tests will be added in the future, along with a better way to run them.
