@@ -69,7 +69,7 @@ factual-fetch restaurants-us ...
 ```
 
 This applies to all of the driver's commands, including `--check`, `--init`, and
-`--x-usage`. You can trigger verbose output by setting the `$factual\_verbose`
+`--x-usage`. You can trigger verbose output by setting the `$factual_verbose`
 variable:
 
 ```sh
