@@ -230,12 +230,13 @@ factual-say() {
   done
 }
 
+factual_auth="$HOME/.factual/factual-auth.yaml"
 factual-load-key() {
-  if [[ -r ~/.factualrc ]]; then
-    oauth_consumer_key="$(cut -f 1 ~/.factualrc)"
-    oauth_consumer_secret="$(cut -f 2 ~/.factualrc)"
+  if [[ -r "$factual_auth" ]]; then
+    oauth_consumer_key="$(grep ^key: $factual_auth | cut -d' ' -f 2)"
+    oauth_consumer_secret="$(grep ^secret: $factual_auth | cut -d' ' -f 2)"
   else
-    factual-say "Your credentials are not yet stored in ~/.factualrc." \
+    factual-say "Your credentials are not yet stored in ~/.factual/factual-auth.yaml." \
                 "To use this driver, you'll need an API key, available free " \
                 "from http://www.factual.com/api-keys/request." \
                 "" \
@@ -245,17 +246,19 @@ factual-load-key() {
     read -p "OAuth secret: " oauth_consumer_secret
 
     factual-say \
-        "For future use, this information will be stored in ~/.factualrc," \
-        "which will be accessible only to you (mode 0600)."
+        "For future use, this information will be stored in" \
+        "~/.factual/factual-auth.yaml, which will be accessible only to you" \
+        "(mode 0600)."
 
     read -p "Is this ok? (y/n) " ok_to_write
 
     if [[ $ok_to_write == 'y' ]]; then
-      if echo -e "$oauth_consumer_key\t$oauth_consumer_secret" > ~/.factualrc; then
-        chmod 0600 ~/.factualrc
-        factual-say "Credentials saved in ~/.factualrc."
+      if mkdir -p "$HOME/.factual" &&
+         echo -e "---\nkey: $oauth_consumer_key\nsecret: $oauth_consumer_secret" > $factual_auth; then
+        chmod 0600 $factual_auth
+        factual-say "Credentials saved."
       else
-        factual-say "Could not write ~/.factualrc"
+        factual-say "Could not write $factual_auth"
         return 1
       fi
     else
@@ -357,7 +360,10 @@ factual-check-dependencies() {
       echo -e "Try \033[1;33m$0 --verbose --check\033[0;0m to see what went wrong."
     return 1
   fi
+}
 
+factual-init() {
+  factual-check-dependencies &&
   factual-usage
 }
 
@@ -369,7 +375,9 @@ factual-json-usage() {
       "Alternatively, you can write alternating keys and values:" \
       "  $0 --facets global --filters 'name Stand'" \
       "" \
-      "This applies for any option that accepts JSON data."
+      "This applies for any option that accepts JSON data, however the" \
+      "alternating key/value notation applies only to toplevel objects." \
+      "(i.e. any nested objects must be written in JSON form)"
 }
 
 factual-fetch-usage() {
@@ -550,7 +558,8 @@ Factual driver version $FACTUAL_DRIVER_VERSION
 Copyright (c) 2012, Factual
 
 Setup:
-  $0 --check   (this will install your OAuth credentials if necessary)
+  $0 --init     # sets up your OAuth credentials and prints usage
+  $0 --check    # verify that you have necessary dependencies
 
 Querying:
   $0 [-v|--verbose] --schema table-name
@@ -614,6 +623,7 @@ factual-main() {
       --geocode-usage) action=geocode-usage;       break ;;
 
       --check)         action=check-dependencies;  break ;;
+      --init)          action=init;                break ;;
       --schema)        action=schema;              break ;;
       --json-usage)    action=json-usage;          break ;;
 
